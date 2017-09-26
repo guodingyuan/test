@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans" 
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	   xmlns:aop="http://www.springframework.org/schema/aop"
+	   xmlns:context="http://www.springframework.org/schema/context"
+	   xmlns:jpa="http://www.springframework.org/schema/data/jpa"
+	   xmlns:tx="http://www.springframework.org/schema/tx"
+	   xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+		http://www.springframework.org/schema/data/jpa http://www.springframework.org/schema/data/jpa/spring-jpa.xsd
+		http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx.xsd">
+
+    <!-- 加载配置文件 -->
+	<bean class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+		<property name="locations">
+			<list>
+				<value>classpath:system-config.properties</value>
+			</list>
+		</property>
+	</bean>
+
+    <!-- 只解析除controller之外的注解(即解析service、dao), 避免重复加载导致事务失效  -->
+    <context:component-scan base-package="com.mike">
+        <!-- annotation为spting-mvc中解析的内容 -->
+        <context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+    </context:component-scan>
+        
+      <!-- 配置数据源 -->
+    <bean id="dataSource"
+        class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+        <property name="driverClassName" value="com.mysql.jdbc.Driver"></property>
+        <!-- 换成自己的数据库路径 -->
+       <property name="url" value="${test.jdbc.url}"></property>
+        <property name="username" value="${test.jdbc.username}"></property>
+        <property name="password" value="${test.jdbc.password}"></property>
+    </bean>
+    
+    <!-- jpa的EntityManagerFactory，相当于Hibernate的SessionFactory -->
+	<bean id="entityManagerFactory" class="org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean">
+		<property name="dataSource" ref="dataSource" />
+		<property name="packagesToScan" value="com.mike" />
+		<property name="jpaVendorAdapter">
+			<bean class="org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter" />
+		</property>
+		<property name="jpaProperties">
+			<props>
+				<prop key="hibernate.show_sql">true</prop>
+				<prop key="hibernate.format_sql">true</prop>
+				<prop key="hibernate.connection.autocommit">false</prop>
+				<prop key="hibernate.default_batch_fetch_size">50</prop>
+				<prop key="hibernate.max_fetch_depth">2</prop>
+				<!-- 实体中属性为userCode，表中字段为user_code时，不再需要写@Column映射 -->
+				<!-- <prop key="hibernate.implicit_naming_strategy">org.hibernate.boot.model.naming.ImplicitNamingStrategyJpaCompliantImpl</prop>
+				<prop key="hibernate.physical_naming_strategy">com.mike.util.spring.jpa.PhysicalNamingStrategyImpl</prop> -->
+				<!-- 二级缓存 -->
+				<prop key="hibernate.cache.region.factory_class">org.hibernate.cache.ehcache.EhCacheRegionFactory</prop>
+				<prop key="net.sf.ehcache.configurationResourceName">jpa-cache.xml</prop>
+				<prop key="hibernate.generate_statistics">true</prop>
+			</props>
+		</property>
+	</bean>
+    
+    <!-- 配置事务管理器 -->
+	<bean id="transactionManager" class="org.springframework.orm.jpa.JpaTransactionManager">
+		<property name="entityManagerFactory" ref="entityManagerFactory" />
+	</bean>
+    
+    <tx:advice id="txAdvice" transaction-manager="transactionManager">
+        <tx:attributes>
+            <!-- 拦截的是下段配置aop里设置的路径，即txPointcut中配置的路径 -->
+            <!-- 具体的propagation含义请自查 -->
+            <tx:method name="save*" propagation="REQUIRED" />
+            <tx:method name="add*" propagation="REQUIRED" />
+            <tx:method name="create*" propagation="REQUIRED" />
+            <tx:method name="insert*" propagation="REQUIRED" />
+            <tx:method name="update*" propagation="REQUIRED" />
+            <tx:method name="merge*" propagation="REQUIRED" />
+            <tx:method name="del*" propagation="REQUIRED" />
+            <tx:method name="remove*" propagation="REQUIRED" />
+            <tx:method name="put*" propagation="REQUIRED" />
+            <tx:method name="use*" propagation="REQUIRED" />
+            <!--hibernate4必须配置为开启事务 否则 getCurrentSession()获取不到 -->
+            <tx:method name="get*" propagation="REQUIRED" read-only="true" />
+            <tx:method name="count*" propagation="REQUIRED" read-only="true" />
+            <tx:method name="find*" propagation="REQUIRED" read-only="true" />
+            <tx:method name="list*" propagation="REQUIRED" read-only="true" />
+            <tx:method name="*" read-only="true" />
+        </tx:attributes>
+    </tx:advice>
+    <aop:config expose-proxy="true">
+        <!-- 只对业务逻辑层（service层）实施事务 -->
+        <aop:pointcut id="txPointcut"
+            expression="execution(* com.mike.service.*.*(..))" />
+        <aop:advisor advice-ref="txAdvice" pointcut-ref="txPointcut" />   
+    </aop:config>
+    
+    <!-- 加载jpa data jpa -->
+	<!-- 配置context:component-scan扫描的时候 ,不能包括对于的jpa dao扫描,要不然会造成冲突,导致无法生成对应的dao实例 -->
+	<jpa:repositories base-package="com.mike" transaction-manager-ref="transactionManager" entity-manager-factory-ref="entityManagerFactory"/>
+
+
+    <!-- 配置redis -->
+	<bean id="jedisPool" class="com.mike.redis.JedisPoolFactoryBean">
+		<property name="host" value="${redis.host}" />
+		<property name="port" value="${redis.port}" />
+		<property name="password" value="${redis.password}" />
+		<property name="timeout" value="${redis.timeout}" />
+		<property name="maxTotal" value="${redis.max_total}" />
+		<property name="maxIdle" value="${redis.max_idle}" />
+		<property name="minIdle" value="${redis.min_idle}" />
+		<property name="testOnBorrow" value="${redis.test_on_borrow}" />
+		<property name="testOnReturn" value="${redis.test_on_return}" />
+	</bean>
+
+	<bean id="tokenManager" class="com.mike.token.manager.impl.RedisTokenManager">
+		<property name="jedisPool" ref="jedisPool" />
+		<property name="seconds" value="31536000"/>
+	</bean>
+	
+</beans>

@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans" 
+       xmlns:aop="http://www.springframework.org/schema/aop" 
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+       xmlns:mvc="http://www.springframework.org/schema/mvc" 
+       xmlns:context="http://www.springframework.org/schema/context" 
+       xsi:schemaLocation="http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc.xsd
+			http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd
+			http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+			http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+
+ <!-- 当HTTP GET请求地址是/resources/**下的资源时候，不需要DispatchServlet处理， 直接转到 ${webappRoot}/resources目录下的资源，有利于提高静态资源访问效率 -->
+    <mvc:resources mapping="/static/**" location="/images/" order="0" cache-period="2592000"/>
+    <mvc:resources mapping="/swagger/**" location="/WEB-INF/swagger/" order="0" cache-period="2592000" />
+    <mvc:resources mapping="favicon.ico" location="favicon.ico" order="0" cache-period="2592000" />
+
+    <!-- 开启注解，java文件里的@ -->
+     <mvc:annotation-driven />
+<!--   <mvc:annotation-driven content-negotiation-manager="contentNegotiationManager">
+        <mvc:message-converters register-defaults="true">
+            <ref bean="mappingJackson2HttpMessageConverter" />
+            <ref bean="stringHttpMessageConverter" />
+        </mvc:message-converters>
+    </mvc:annotation-driven>
+ 
+ <bean id="mappingJackson2HttpMessageConverter" class="org.springframework.http.converter.json.MappingJackson2HttpMessageConverter">
+        <property name="objectMapper" ref="customObjectMapper" />
+        <property name="supportedMediaTypes">
+            <list>
+                <value>application/json;charset=UTF-8</value>
+                <value>text/html;charset=UTF-8</value>
+                <value>text/json;charset=UTF-8</value>
+            </list>
+        </property>
+    </bean>
+    <bean id="customObjectMapper" class="com.mike.util.json.CustomObjectMapper" />
+
+    StringHttpMessageConverter编码为UTF-8，防止乱码
+    <bean id="stringHttpMessageConverter" class="org.springframework.http.converter.StringHttpMessageConverter">
+        <constructor-arg value="UTF-8" />
+        <property name="supportedMediaTypes">
+            <list>
+                <bean class="org.springframework.http.MediaType">
+                    <constructor-arg index="0" value="text" />
+                    <constructor-arg index="1" value="plain" />
+                    <constructor-arg index="2" value="UTF-8" />
+                </bean>
+                <bean class="org.springframework.http.MediaType">
+                    <constructor-arg index="0" value="*" />
+                    <constructor-arg index="1" value="*" />
+                    <constructor-arg index="2" value="UTF-8" />
+                </bean>
+            </list>
+        </property>
+    </bean>
+    
+     jsonp 支持
+    <bean class="org.springframework.web.servlet.view.json.MappingJackson2JsonView">
+        <property name="jsonpParameterNames">
+            <set>
+                <value>jsonp</value>
+                <value>callback</value>
+            </set>
+        </property>
+    </bean>
+
+    配合@RequestBody、@ResponseBody、HttpMessageConverter使用，不是View
+    <bean id="contentNegotiationManager" class="org.springframework.web.accept.ContentNegotiationManagerFactoryBean">
+        <property name="mediaTypes">
+            <value>
+                json=application/json;charset=UTF-8
+                xml=application/xml;charset=UTF-8
+                html=text/html;charset=UTF-8
+            </value>
+        </property>
+    </bean> -->
+
+
+    <!-- 注解扫描包，注意换成自己的路径 -->
+    <context:component-scan base-package="com.mike.controller">
+        <!-- 只扫描@Controller的部分 -->
+        <context:include-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+    </context:component-scan>
+
+    <!--完成请求和注解POJO的映射 -->
+    <bean
+        class="org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor" />
+
+    <!-- 静态资源(js/image)的访问 ，可添加多个-->
+    <mvc:resources location="/js/" mapping="/js/**" />
+
+    <!--配置后才能访问WEB-INF目录下的资源文件 -->
+    <!-- 默认JSP视图解析器 -->
+    <bean id="viewResolver" class="org.springframework.web.servlet.view.InternalResourceViewResolver">
+        <property name="viewClass" value="org.springframework.web.servlet.view.JstlView" />
+        <property name="prefix" value="/WEB-INF/view/" />
+        <property name="suffix" value="" /><!-- 使用多视图解析器时，此处不填后缀.jsp -->
+        <property name="contentType" value="text/html;charset=UTF-8" />
+        <property name="order" value="1" />
+        <!-- 必须加上下面这一句，否则多个视图解析器将无法正确识别 -->
+         <property name="viewNames" value="*.jsp" />
+    </bean>
+
+    <!-- thymeleaf的视图解析器 -->
+    <bean id="templateResolver" class="org.thymeleaf.spring4.templateresolver.SpringResourceTemplateResolver">
+        <property name="prefix" value="/WEB-INF/html/" />
+        <property name="suffix" value="" /><!-- 使用多视图解析器时，此处不填后缀.html -->
+        <property name="templateMode" value="HTML" />
+        <property name="cacheable" value="false" />
+        <property name="characterEncoding" value="UTF-8" />       
+    </bean>
+    <bean id="templateEngine" class="org.thymeleaf.spring4.SpringTemplateEngine">
+        <property name="templateResolver" ref="templateResolver" />
+    </bean>
+    <bean id="viewResolverThymeleaf" class="org.thymeleaf.spring4.view.ThymeleafViewResolver">
+        <property name="templateEngine" ref="templateEngine" />
+        <property name="characterEncoding" value="utf-8" />
+        <property name="order" value="0" />
+        <!-- 必须加上下面这一句，否则多个视图解析器将无法正确识别 -->
+        <property name="viewNames" value="*.html,*.xhtml" />
+    </bean>
+    
+    <mvc:interceptors>
+        <!-- api调用日志拦截器 <mvc:interceptor> <mvc:mapping path="/api/**" /> <mvc:exclude-mapping path="/resources/**" /> <bean class="com.yhsoft.api.interceptor.RequestApiLogInterceptor" /> </mvc:interceptor> -->
+        <mvc:interceptor>
+            <mvc:mapping path="/**" />
+            <mvc:exclude-mapping path="/web/**" />
+            <mvc:exclude-mapping path="/html/**" />
+            <mvc:exclude-mapping path="/view/**" />
+            <mvc:exclude-mapping path="/static/**" />
+            <mvc:exclude-mapping path="/**.map" />
+            <mvc:exclude-mapping path="favicon.ico" />
+            <!--身份验证的拦截器 -->
+            <bean id="authorizationInterceptor" class="com.mike.token.interceptor.AuthorizationInterceptor">
+                <!--管理验证信息的bean -->
+                <property name="tokenManager" ref="tokenManager" />
+            </bean>
+        </mvc:interceptor>
+    </mvc:interceptors>
+    
+     <!-- 错误页面不通过controller直接找视图 -->
+    <mvc:view-controller path="/404.html" view-name="error/404.html" />
+    <mvc:view-controller path="/500.html" view-name="error/500.html" />
+    
+      <!-- 全局异常处理 -->
+    <bean class="com.mike.util.exception.AnnotationHandlerMethodExceptionResolver">
+        <property name="defaultErrorView" value="error/error.jsp" />
+    </bean>
+</beans>  

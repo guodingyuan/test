@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 系统缓存配置 -->
+<ehcache name="hibernateCache" updateCheck="false">
+
+	<diskStore path="java.io.tmpdir" />
+
+	<defaultCache maxEntriesLocalHeap="2000" eternal="false" overflowToDisk="false" />
+	
+</ehcache>
